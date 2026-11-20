@@ -1,0 +1,17 @@
+"""Load 5 years of store_sales into one format."""
+from common import *
+fmt = cli().format; spark = get_spark(fmt); t = get_table(spark, fmt)
+ss = spark.read.parquet(f"{C.DATA_DIR}/store_sales")
+dd = spark.read.parquet(f"{C.DATA_DIR}/date_dim").select("d_date_sk", F.date_format("d_date", "yyyy-MM").alias(C.PARTITION_COL))
+df = (ss.join(F.broadcast(dd), ss.ss_sold_date_sk == dd.d_date_sk, "left").drop("d_date_sk")
+        .withColumn(C.PARTITION_COL, F.coalesce(F.col(C.PARTITION_COL), F.lit("0000-00")))
+        .withColumn("updated_at", F.current_timestamp()))
+src_rows = ss.count()
+with timed() as r: t.write_initial(df)
+h = t.history()
+n = t.read().count()
+state_put(fmt, initial_rows=n, v0=h[0]["ref"], v0_ts=h[0]["ts_ms"])
+record(fmt, "load", "load_seconds", r["seconds"], "s", rows=n, source_rows=src_rows)
+record(fmt, "load", "rows_per_second", round(n / r["seconds"]), "rows/s")
+record(fmt, "load", "table_bytes", t.size(), "bytes", data_files=t.files(), metadata_bytes=t.meta())
+record(fmt, "load", "source_parquet_bytes", dir_bytes(spark, f"{C.DATA_DIR}/store_sales"), "bytes")

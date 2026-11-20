@@ -1,0 +1,24 @@
+services:
+  lakehouse-benchmark:
+    build: .
+    container_name: lakehouse-bench-runner
+    environment:
+      - TPCDS_SF=1
+      - TABLE_MODE=cow
+      - BENCH_ROOT=/app/bench_data
+      - SPARK_MASTER=local[*]
+      - DRIVER_MEM=8g
+      - SHUFFLE_PARTS=8
+    volumes:
+      - ./results:/app/results
+      - ./bench_data:/app/bench_data
+      - ./site:/app/site
+      - ivy_cache:/root/.ivy2
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 12G
+
+volumes:
+  ivy_cache:
